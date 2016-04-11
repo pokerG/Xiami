@@ -9,3 +9,4 @@ CREATE TABLE song_info (
     KEY `idx_song_songsterName` (`songsterName`),
     KEY `idx_song_releaseTime` (`releaseTime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='歌曲信息表'
+

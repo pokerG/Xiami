@@ -2,7 +2,9 @@
 import pymysql.cursors
 import pymongo
 from HTMLParser import HTMLParser
+import datetime
 
+import gl
 
 class MyHTMLParser(HTMLParser):
     def __init__(self):
@@ -17,30 +19,20 @@ class MyHTMLParser(HTMLParser):
         if data.find("发行时间") >= 0:
             self.found = True
 
-mysql_host = 'localhost'
-mysql_port = 3306
-mysql_user = 'root'
-mysql_password = ''
-mysql_db = 'kdwtemp2'
-mysql_charset = 'utf8mb4'
 
-mg_host = 'localhost'
-mg_port = 27017
-mg_user = ''
-mg_password = ''
 
 hp = MyHTMLParser()
 
-mgClient = pymongo.MongoClient(mg_host, mg_port)
+mgClient = pymongo.MongoClient(gl.mg_host, gl.mg_port)
 mgOrigin = mgClient.Xiami.OriginData
 # print(mgOrigin.find_one())
 
-mysqlConnection = pymysql.connect(host=mysql_host,
-                                  port=mysql_port,
-                                  user=mysql_user,
-                                  password=mysql_password,
-                                  db=mysql_db,
-                                  charset=mysql_charset,
+mysqlConnection = pymysql.connect(host=gl.mysql_host,
+                                  port=gl.mysql_port,
+                                  user=gl.mysql_user,
+                                  password=gl.mysql_password,
+                                  db=gl.mysql_db,
+                                  charset=gl.mysql_charset,
                                   cursorclass=pymysql.cursors.DictCursor)
 
 try:
@@ -59,12 +51,13 @@ try:
                 album_info = album_info.replace('\n', '')
                 album_info = album_info.replace('\t', '')
                 hp.feed(album_info)
-                hp.releasetime = hp.releasetime.replace('年', '-')
-                hp.releasetime = hp.releasetime.replace('月', '-')
-                hp.releasetime = hp.releasetime.replace('日', '')
-                print '%s %s %s' % (res.get("SongName").encode("utf-8"), res.get("songsterName").encode("utf-8"), hp.releasetime)
+                releasetime = datetime.datetime.strptime(hp.releasetime, "%Y年%m月%d日")
+                # hp.releasetime = hp.releasetime.replace('年', '-')
+                # hp.releasetime = hp.releasetime.replace('月', '-')
+                # hp.releasetime = hp.releasetime.replace('日', '')
+                print '%s %s %s' % (res.get("SongName").encode("utf-8"), res.get("songsterName").encode("utf-8"), releasetime.date())
                 args.append((res.get("SongID").encode("utf-8"), res.get("SongName").encode("utf-8"),
-                                     res.get("songsterName").encode("utf-8"), hp.releasetime))
+                                     res.get("songsterName").encode("utf-8"), releasetime.date()))
 
                 n += 1
         print(num)
