@@ -12,17 +12,17 @@ class MyHTMLParser(HTMLParser):
     def __init__(self):
         HTMLParser.__init__(self)
         self.found = False
-        self.releasetime = ""
+        self.releasetime = ''
 
     def refresh(self):
         self.found = False
-        self.releasetime = ""
+        self.releasetime = ''
 
     def handle_data(self, data):
         if self.found:
             self.found = False
             self.releasetime = data
-        if data.find("发行时间") >= 0:
+        if data.find('发行时间') >= 0:
             self.found = True
 
 
@@ -36,7 +36,7 @@ reload(sys)
 sys.setdefaultencoding('utf-8')
 hp = MyHTMLParser()
 mgClient = pymongo.MongoClient(gl.mg_host, gl.mg_port)
-mgOrigin = mgClient.Xiami.OriginData
+mgExtract = mgClient.Xiami.ExtractData
 # print(mgOrigin.find_one())
 
 mysqlConnection = pymysql.connect(host=gl.mysql_host,
@@ -47,57 +47,60 @@ mysqlConnection = pymysql.connect(host=gl.mysql_host,
                                   charset=gl.mysql_charset,
                                   cursorclass=pymysql.cursors.DictCursor)
 
-
-with mysqlConnection.cursor() as cursor:
-    sql = "SELECT * FROM kdw_tbl_song"
-    cursor.execute(sql)
-    num = 0
-    n = 0
-    args = []
-    for res in cursor:
-        num += 1
-        doc = mgOrigin.find_one({"musics.value": res.get("SongName")})
-        if doc:
+try:
+    with mysqlConnection.cursor() as cursor:
+        sql = 'SELECT * FROM kdw_tbl_song'
+        cursor.execute(sql)
+        num = 0
+        n = 0
+        args = []
+        for res in cursor:
+            num += 1
+            docs = mgExtract.find({'$or': [{'music_title': res.get('SongName')}, {'music_alias': res.get('SongName')}]})
             releasetime = datetime.datetime.max
+            for doc in docs:
+                try:
+                    # temptime = datetime.datetime.strptime(doc.get('album_info').get('发行时间'), '%Y年%m月%d日')
+                    # 中文作为key 用get方法好像不行？
+                    for tuple in doc.get('album_info').items():
+                        if tuple[0] == '发行时间':
+                            temptime = datetime.datetime.strptime(tuple[1], '%Y年%m月%d日')
+                    if doc.get('singer_title').find(res.get('songsterName')) >= 0 \
+                        or doc.get('singer_alias').find(res.get('songsterName')) >= 0 \
+                        or res.get('songsterName').find(doc.get('singer_title')) >= 0 \
+                        or res.get('songsterName').find(doc.get('singer_alias')) >= 0:
+                        releasetime = temptime
+                        break
+                    releasetime = temptime if temptime < releasetime else releasetime
+                except Exception, e:
+                    print '%s     %s' % (str(e), str(doc))
+                    logging.debug(str(e) + '   ' + str(doc))
+                    continue
+            if releasetime != datetime.datetime.max:
+                print '%s %s %s %s' % (res.get("SongID").encode('utf-8'), res.get('SongName').encode('utf-8'),
+                                       res.get('songsterName').encode('utf-8'), releasetime.date())
+                args.append((res.get('SongID').encode('utf-8'), res.get('SongName').encode('utf-8'),
+                                     res.get('songsterName').encode('utf-8'), releasetime.date()))
+                n += 1
+
+        print(num)
+        print(n)
+        insertsql = '''
+            INSERT INTO `song_info` (`SongID`, `SongName`, `songsterName`, `releaseTime`) VALUES (%s, %s, %s, %s)
+            '''
+        for arg in args:
             try:
-                album_info = doc.get("album_info").encode("utf-8")
-                album_info = album_info.replace('\r', '')
-                album_info = album_info.replace('\n', '')
-                album_info = album_info.replace('\t', '')
-                hp.refresh()
-                hp.feed(album_info)
-                releasetime = datetime.datetime.strptime(hp.releasetime, "%Y年%m月%d日")
+                print 'insert %s' % arg
+                cursor.execute(insertsql, arg)
+                mysqlConnection.commit()
             except Exception, e:
-                print e
-                print doc.get("_id")
-                logging.debug(str(e) + '            ' + str(doc.get("_id")))
+                logging.debug(str(e) + '             ' + str(arg))
                 continue
-            # hp.releasetim    e = hp.releasetime.replace('年', '-')
-            # hp.releasetime = hp.releasetime.replace('月', '-')
-            # hp.releasetime = hp.releasetime.replace('日', '')
-            print '%s %s %s' % (res.get("SongName").encode("utf-8"), res.get("songsterName").encode("utf-8"), releasetime.date())
-            args.append((res.get("SongID").encode("utf-8"), res.get("SongName").encode("utf-8"),
-                                 res.get("songsterName").encode("utf-8"), releasetime.date()))
-
-            n += 1
-
-    print(num)
-    print(n)
-    insertsql = """
-        INSERT INTO `song_info` (`SongID`, `SongName`, `songsterName`, `releaseTime`) VALUES (%s, %s, %s, %s)
-        """
-    for arg in args:
-        try:
-            cursor.execute(insertsql, arg)
-            mysqlConnection.commit()
-        except Exception, e:
-            logging.debug(str(e) + '             ' + str(arg))
-            continue
-    # cursor.executemany(insertsql, args)
-    # print(result.get("id"))
-# mysqlConnection.commit()
-
-hp.close()
-mgClient.close()
-mysqlConnection.close()
+        # cursor.executemany(insertsql, args)
+        # print(result.get('id'))
+    # mysqlConnection.commit()
+except:
+    hp.close()
+    mgClient.close()
+    mysqlConnection.close()
 

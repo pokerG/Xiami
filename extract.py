@@ -1,5 +1,4 @@
 # -*- coding:utf-8 -*-
-from HTMLParser import HTMLParser
 import pymongo
 import httplib
 import sys
@@ -91,3 +90,4 @@ print (t1, t2)
 countParser.close()
 tagsParser.close()
 infoParser.close()
+mgClient.close()
