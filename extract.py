@@ -32,6 +32,9 @@ infoParser = myhtmlparser.infoHTMLParser()
 t1 = datetime.datetime.now()
 for raw in mgOrigin.find():
     print raw.get('_id')
+    for key in raw:
+        if raw.get(key) == None:
+            raw[key] = ''
     dealedData = {}
     dealedData['music_title'] = raw.get('musics').get('value').encode("utf-8")
     dealedData['music_alias'] = raw.get('music_title').encode("utf-8")
@@ -47,7 +50,7 @@ for raw in mgOrigin.find():
     dealedData['music_tags'] = tagsParser.tags
     infoParser.refresh()
     infoParser.feed(raw.get('music_info').encode("utf-8"))
-    # dealedData['music_info'] = infoParser.info
+    dealedData['music_info'] = infoParser.info
 
     dealedData['album_title'] = raw.get('album_links').get('value').encode("utf-8")
     dealedData['album_alias'] = raw.get('album_title').encode("utf-8")
@@ -62,7 +65,7 @@ for raw in mgOrigin.find():
     dealedData['album_tags'] = tagsParser.tags
     infoParser.refresh()
     infoParser.feed(raw.get('album_info').encode("utf-8"))
-    # dealedData['album_info'] = infoParser.info
+    dealedData['album_info'] = infoParser.info
 
     singerName = raw.get('singers_link').get('value').encode("utf-8")
     dealedData['singer_title'] = singerName[0:singerName.find('(')] if singerName.find('(') > 0 else singerName
@@ -79,7 +82,7 @@ for raw in mgOrigin.find():
     dealedData['singer_tags'] = tagsParser.tags
     infoParser.refresh()
     infoParser.feed(raw.get('singer_info').encode("utf-8"))
-    # dealedData['singer_info'] = infoParser.info
+    dealedData['singer_info'] = infoParser.info
     print '%s %s %s' % (dealedData['music_title'], dealedData['album_title'], dealedData['singer_title'])
     mgExtract.insert_one(dealedData)
 
