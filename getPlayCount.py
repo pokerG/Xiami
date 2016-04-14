@@ -3,6 +3,8 @@ import pymongo
 import httplib
 import datetime
 import logging
+import copy
+import traceback
 
 import gl
 
@@ -24,34 +26,38 @@ def getPlayCount(uid, utype):
     return response.get("plays")
 
 t1 = datetime.datetime.now()
-
-for document in mgExtract.find():
-    print document.get('_id')
-    songplaycount = 0
-    artistplaycount = 0
-    songid = document.get('music_href')[document.get('music_href').rfind('/') + 1:]
-    artistid = document.get('singer_href')[document.get('singer_href').rfind('/') + 1:]
-    for i in range(0, 3):
-        try:
-            songplaycount = getPlayCount(songid, 'song')
-        except Exception, e:
-            debuginfo = '%s  id %s song %d times request failed' % (str(e), str(songid), i + 1)
-            print debuginfo
-            logging.debug(debuginfo)
-        else:
-            break
-    for i in range(0, 3):
-        try:
-            artistplaycount = getPlayCount(artistid, 'artist')
-        except Exception, e:
-            debuginfo = '%s  id %s artist %d times request failed' % (str(e), str(artistid), i + 1)
-            print debuginfo
-            logging.debug(debuginfo)
-        else:
-            break
-    print "update %s : %d %d" % (document.get('_id'), songplaycount, artistplaycount)
-    mgExtract.update_one({"_id": document.get('_id')}, {"$set": {"music_count.play": songplaycount, "singer_count.play": artistplaycount}})
-
-mgClient.close()
+documents = copy.deepcopy(mgExtract.find())
+try:
+    for document in documents:
+        print document.get('_id')
+        songplaycount = 0
+        artistplaycount = 0
+        songid = document.get('music_href')[document.get('music_href').rfind('/') + 1:]
+        artistid = document.get('singer_href')[document.get('singer_href').rfind('/') + 1:]
+        for i in range(0, 3):
+            try:
+                songplaycount = getPlayCount(songid, 'song')
+            except Exception, e:
+                debuginfo = '%s  id %s song %d times request failed' % (str(e), str(songid), i + 1)
+                print debuginfo
+                logging.debug(debuginfo)
+            else:
+                break
+        for i in range(0, 3):
+            try:
+                artistplaycount = getPlayCount(artistid, 'artist')
+            except Exception, e:
+                debuginfo = '%s  id %s artist %d times request failed' % (str(e), str(artistid), i + 1)
+                print debuginfo
+                logging.debug(debuginfo)
+            else:
+                break
+        print "update %s : %d %d" % (document.get('_id'), songplaycount, artistplaycount)
+        mgExtract.update_one({"_id": document.get('_id')}, {"$set": {"music_count.play": songplaycount, "singer_count.play": artistplaycount}})
+except Exception, e:
+    print traceback.format_exc()
+    print e
+finally:
+    mgClient.close()
 
 

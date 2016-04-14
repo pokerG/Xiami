@@ -8,24 +8,6 @@ import sys
 
 import gl
 
-class MyHTMLParser(HTMLParser):
-    def __init__(self):
-        HTMLParser.__init__(self)
-        self.found = False
-        self.releasetime = ''
-
-    def refresh(self):
-        self.found = False
-        self.releasetime = ''
-
-    def handle_data(self, data):
-        if self.found:
-            self.found = False
-            self.releasetime = data
-        if data.find('发行时间') >= 0:
-            self.found = True
-
-
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                     datefmt='%a, %d %b %Y %H:%M:%S',
@@ -34,7 +16,6 @@ logging.basicConfig(level=logging.DEBUG,
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
-hp = MyHTMLParser()
 mgClient = pymongo.MongoClient(gl.mg_host, gl.mg_port)
 mgExtract = mgClient.Xiami.ExtractData
 # print(mgOrigin.find_one())
@@ -65,10 +46,12 @@ try:
                     for tuple in doc.get('album_info').items():
                         if tuple[0] == '发行时间':
                             temptime = datetime.datetime.strptime(tuple[1], '%Y年%m月%d日')
-                    if doc.get('singer_title').find(res.get('songsterName')) >= 0 \
-                        or doc.get('singer_alias').find(res.get('songsterName')) >= 0 \
-                        or res.get('songsterName').find(doc.get('singer_title')) >= 0 \
-                        or res.get('songsterName').find(doc.get('singer_alias')) >= 0:
+                            break
+                    # 防止名字缺失引起的匹配
+                    n1 = doc.get('singer_title') if doc.get('singer_title') != '' else '!@#$%^&*'
+                    n2 = doc.get('singer_alias') if doc.get('singer_alias') != '' else '!@#$%^&*'
+                    n3 = res.get('songsterName') if res.get('songsterName') != '' else '!@#$%^&*'
+                    if n1.find(n3) >= 0 or n2.find(n3) >= 0 or n3.find(n1) >= 0 or n3.find(n2) >= 0:
                         releasetime = temptime
                         break
                     releasetime = temptime if temptime < releasetime else releasetime
@@ -79,6 +62,9 @@ try:
             if releasetime != datetime.datetime.max:
                 print '%s %s %s %s' % (res.get("SongID").encode('utf-8'), res.get('SongName').encode('utf-8'),
                                        res.get('songsterName').encode('utf-8'), releasetime.date())
+                with open('songreleasetime.data', 'a') as f:
+                    f.write('%s@%s@%s@%s\n' % (res.get("SongID").encode('utf-8'), res.get('SongName').encode('utf-8'),
+                                             res.get('songsterName').encode('utf-8'), releasetime.date()))
                 args.append((res.get('SongID').encode('utf-8'), res.get('SongName').encode('utf-8'),
                                      res.get('songsterName').encode('utf-8'), releasetime.date()))
                 n += 1
@@ -90,7 +76,7 @@ try:
             '''
         for arg in args:
             try:
-                print 'insert %s' % arg
+                print 'insert %s' % str(arg)
                 cursor.execute(insertsql, arg)
                 mysqlConnection.commit()
             except Exception, e:
@@ -100,7 +86,6 @@ try:
         # print(result.get('id'))
     # mysqlConnection.commit()
 except:
-    hp.close()
     mgClient.close()
     mysqlConnection.close()
 
